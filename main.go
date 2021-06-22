@@ -41,7 +41,7 @@ type validator struct {
 
 var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 var appHost = flag.String("app-host", "127.0.0.1", "Host of exposed API")
-var appPort = flag.String("app-port", ":13170", "Port of exposed API")
+var appPort = flag.String("app-port", ":1317", "Port of exposed API")
 
 func getBlockNum(apiHost string, apiRoute string, metric prometheus.Gauge) {
 
