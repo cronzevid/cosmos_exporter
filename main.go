@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -27,16 +28,16 @@ type headerData struct {
 	Time   string `json:"time"`
 }
 
-type validatorSetsLatest struct {
-	Result resultContent `json:"result"`
+type addrBookJson struct {
+	Addrs []addrBook `json:"addrs"`
 }
 
-type resultContent struct {
-	Validators []validator `json:"validators"`
+type addrBook struct {
+	Addr addrData `json:"addr"`
 }
 
-type validator struct {
-	Address string `json:"address"`
+type addrData struct {
+	Id string `json:"id"`
 }
 
 var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
@@ -99,26 +100,21 @@ func getTimeSkew(apiHost string, apiRoute string, metric prometheus.Gauge) {
 	}
 }
 
-func getPeerAmount(apiHost string, apiRoute string, metric prometheus.Gauge) {
+func getPeerAmount(addrBook string, metric prometheus.Gauge) {
 	for {
-		fullApiRoute := fmt.Sprintf("http://%s/%s", apiHost, apiRoute)
-		response, err := http.Get(fullApiRoute)
+		jsonFile, err := os.Open(addrBook)
+
 		if err != nil {
-			log.Printf("%s", err)
-		} else {
-			defer response.Body.Close()
-			contents, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				log.Printf("%s", err)
-			}
-
-			apiResponse := validatorSetsLatest{}
-			json.Unmarshal([]byte(contents), &apiResponse)
-
-			validators := apiResponse.Result.Validators
-
-			metric.Set(float64(len(validators)))
+			fmt.Println(err)
 		}
+		defer jsonFile.Close()
+
+		addrJsonBytes, _ := ioutil.ReadAll(jsonFile)
+
+		addrJson := addrBookJson{}
+		json.Unmarshal([]byte(addrJsonBytes), &addrJson)
+
+		metric.Set(float64(len(addrJson.Addrs)))
 		time.Sleep(5 * time.Second)
 	}
 }
@@ -145,7 +141,7 @@ func main() {
 
 	go getBlockNum(*appHost+*appPort, "blocks/latest", blockNum)
 	go getTimeSkew(*appHost+*appPort, "blocks/latest", timeSkew)
-	go getPeerAmount(*appHost+*appPort, "/validatorsets/latest", peerAmount)
+	go getPeerAmount("/root/.gaia/config/addrbook.json", peerAmount)
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("Starting web server at %s\n", *addr)
