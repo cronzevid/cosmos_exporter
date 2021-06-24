@@ -107,12 +107,13 @@ func getPeerAmount(addrBook string, metric prometheus.Gauge) {
 		if err != nil {
 			fmt.Println(err)
 		}
-		defer jsonFile.Close()
 
 		addrJsonBytes, _ := ioutil.ReadAll(jsonFile)
 
 		addrJson := addrBookJson{}
 		json.Unmarshal([]byte(addrJsonBytes), &addrJson)
+
+		jsonFile.Close()
 
 		metric.Set(float64(len(addrJson.Addrs)))
 		time.Sleep(5 * time.Second)
