@@ -44,7 +44,9 @@ var addr = flag.String("listen-address", ":8080", "The address to listen on for 
 var appHost = flag.String("app-host", "127.0.0.1", "Host of exposed API")
 var appPort = flag.String("app-port", ":1317", "Port of exposed API")
 
-func getBlockNum(apiHost string, apiRoute string, metric prometheus.Gauge) {
+func callApi(apiHost string, callType string, metric prometheus.Gauge) {
+
+	apiRoute := "blocks/latest"
 
 	for {
 		fullApiRoute := fmt.Sprintf("http://%s/%s", apiHost, apiRoute)
@@ -52,7 +54,6 @@ func getBlockNum(apiHost string, apiRoute string, metric prometheus.Gauge) {
 		if err != nil {
 			log.Printf("%s", err)
 		} else {
-			defer response.Body.Close()
 			contents, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				log.Printf("%s", err)
@@ -61,41 +62,25 @@ func getBlockNum(apiHost string, apiRoute string, metric prometheus.Gauge) {
 			apiResponse := blocksLatest{}
 			json.Unmarshal([]byte(contents), &apiResponse)
 
-			height, _ := strconv.ParseFloat(apiResponse.Block.Header.Height, 64)
+			if callType == "block" {
+				height, _ := strconv.ParseFloat(apiResponse.Block.Header.Height, 64)
 
-			metric.Set(height)
-		}
+				metric.Set(height)
+			} else if callType == "time" {
+				blockDateApi := apiResponse.Block.Header.Time
 
-		time.Sleep(5 * time.Second)
-	}
-}
+				blockDate, _ := time.Parse(time.RFC3339Nano, blockDateApi)
+				blockSec := blockDate.UnixNano()
 
-func getTimeSkew(apiHost string, apiRoute string, metric prometheus.Gauge) {
-	for {
-		fullApiRoute := fmt.Sprintf("http://%s/%s", apiHost, apiRoute)
-		response, err := http.Get(fullApiRoute)
-		if err != nil {
-			log.Printf("%s", err)
-		} else {
-			defer response.Body.Close()
-			contents, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				log.Printf("%s", err)
+				now := time.Now()
+				curNanoSec := now.UnixNano()
+
+				metric.Set(float64(curNanoSec - blockSec))
 			}
 
-			apiResponse := blocksLatest{}
-			json.Unmarshal([]byte(contents), &apiResponse)
-
-			blockDateApi := apiResponse.Block.Header.Time
-
-			blockDate, err := time.Parse(time.RFC3339Nano, blockDateApi)
-			blockSec := blockDate.UnixNano()
-
-			now := time.Now()
-			curNanoSec := now.UnixNano()
-
-			metric.Set(float64(curNanoSec - blockSec))
+			response.Body.Close()
 		}
+
 		time.Sleep(5 * time.Second)
 	}
 }
@@ -140,8 +125,8 @@ func main() {
 	prometheus.MustRegister(timeSkew)
 	prometheus.MustRegister(peerAmount)
 
-	go getBlockNum(*appHost+*appPort, "blocks/latest", blockNum)
-	go getTimeSkew(*appHost+*appPort, "blocks/latest", timeSkew)
+	go callApi(*appHost+*appPort, "block", blockNum)
+	go callApi(*appHost+*appPort, "time", timeSkew)
 	go getPeerAmount("/root/.gaia/config/addrbook.json", peerAmount)
 
 	http.Handle("/metrics", promhttp.Handler())
