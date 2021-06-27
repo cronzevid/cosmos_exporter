@@ -41,6 +41,7 @@ type addrData struct {
 }
 
 var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
+var configPath = flag.String("config-path", "/root/.gaia/config/addrbook.json", "Path to gaiad config")
 var appHost = flag.String("app-host", "127.0.0.1", "Host of exposed API")
 var appPort = flag.String("app-port", ":1317", "Port of exposed API")
 
@@ -127,7 +128,7 @@ func main() {
 
 	go callApi(*appHost+*appPort, "block", blockNum)
 	go callApi(*appHost+*appPort, "time", timeSkew)
-	go getPeerAmount("/root/.gaia/config/addrbook.json", peerAmount)
+	go getPeerAmount(*configPath, peerAmount)
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("Starting web server at %s\n", *addr)
