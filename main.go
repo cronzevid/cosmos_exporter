@@ -58,6 +58,7 @@ func callApi(apiHost string, callType string, metric prometheus.Gauge) {
 			contents, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				log.Printf("%s", err)
+                                continue
 			}
 
 			apiResponse := blocksLatest{}
@@ -91,7 +92,8 @@ func getPeerAmount(addrBook string, metric prometheus.Gauge) {
 		jsonFile, err := os.Open(addrBook)
 
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
+                        continue
 		}
 
 		addrJsonBytes, _ := ioutil.ReadAll(jsonFile)
@@ -135,7 +137,7 @@ func main() {
 
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
-		log.Printf("http.ListenAndServer: %v\n", err)
+		log.Fatal("http.ListenAndServer: %v\n", err)
 	}
 
 }
