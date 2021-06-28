@@ -8,9 +8,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
+	//"strconv"
 	"time"
 
+        "cosmos_exporter/grpc"
+
+        "google.golang.org/grpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -45,45 +48,63 @@ var configPath = flag.String("config-path", "/root/.gaia/config/addrbook.json", 
 var appHost = flag.String("app-host", "127.0.0.1", "Host of exposed API")
 var appPort = flag.String("app-port", ":1317", "Port of exposed API")
 
+//func callApi(apiHost string, callType string, metric prometheus.Gauge) {
+//
+//	apiRoute := "blocks/latest"
+//
+//	for {
+//		fullApiRoute := fmt.Sprintf("http://%s/%s", apiHost, apiRoute)
+//		response, err := http.Get(fullApiRoute)
+//		if err != nil {
+//			log.Printf("%s", err)
+//		} else {
+//			contents, err := ioutil.ReadAll(response.Body)
+//			if err != nil {
+//				log.Printf("%s", err)
+//			}
+//
+//			apiResponse := blocksLatest{}
+//			json.Unmarshal([]byte(contents), &apiResponse)
+//
+//			if callType == "block" {
+//				height, _ := strconv.ParseFloat(apiResponse.Block.Header.Height, 64)
+//
+//				log.Println(height)
+//			} else if callType == "time" {
+//				blockDateApi := apiResponse.Block.Header.Time
+//
+//				blockDate, _ := time.Parse(time.RFC3339Nano, blockDateApi)
+//				blockSec := blockDate.UnixNano()
+//
+//				now := time.Now()
+//				curNanoSec := now.UnixNano()
+//
+//				log.Println(float64(curNanoSec - blockSec))
+//			}
+//
+//			response.Body.Close()
+//		}
+//
+//		time.Sleep(5 * time.Second)
+//	}
+//}
+
 func callApi(apiHost string, callType string, metric prometheus.Gauge) {
 
-	apiRoute := "blocks/latest"
+    var opts []grpc.DialOption
 
-	for {
-		fullApiRoute := fmt.Sprintf("http://%s/%s", apiHost, apiRoute)
-		response, err := http.Get(fullApiRoute)
-		if err != nil {
-			log.Printf("%s", err)
-		} else {
-			contents, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				log.Printf("%s", err)
-			}
+    opts = append(opts, grpc.WithInsecure())
 
-			apiResponse := blocksLatest{}
-			json.Unmarshal([]byte(contents), &apiResponse)
+    conn, err := grpc.Dial(apiHost, opts...)
+    if err != nil {
+        log.Println(err)
+    }
 
-			if callType == "block" {
-				height, _ := strconv.ParseFloat(apiResponse.Block.Header.Height, 64)
+    client := grpc.NewServiceClient(conn)
 
-				metric.Set(height)
-			} else if callType == "time" {
-				blockDateApi := apiResponse.Block.Header.Time
 
-				blockDate, _ := time.Parse(time.RFC3339Nano, blockDateApi)
-				blockSec := blockDate.UnixNano()
+    defer conn.Close()
 
-				now := time.Now()
-				curNanoSec := now.UnixNano()
-
-				metric.Set(float64(curNanoSec - blockSec))
-			}
-
-			response.Body.Close()
-		}
-
-		time.Sleep(5 * time.Second)
-	}
 }
 
 func getPeerAmount(addrBook string, metric prometheus.Gauge) {
@@ -101,7 +122,7 @@ func getPeerAmount(addrBook string, metric prometheus.Gauge) {
 
 		jsonFile.Close()
 
-		metric.Set(float64(len(addrJson.Addrs)))
+		log.Println(float64(len(addrJson.Addrs)))
 		time.Sleep(5 * time.Second)
 	}
 }
@@ -126,7 +147,8 @@ func main() {
 	prometheus.MustRegister(timeSkew)
 	prometheus.MustRegister(peerAmount)
 
-	go callApi(*appHost+*appPort, "block", blockNum)
+	//go callApi(*appHost+*appPort, "block", blockNum)
+	//go callApi(*appHost+*appPort, "time", timeSkew)
 	go callApi(*appHost+*appPort, "time", timeSkew)
 	go getPeerAmount(*configPath, peerAmount)
 
