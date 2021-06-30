@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/bastjan/netstat"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -37,13 +40,29 @@ type addrBook struct {
 }
 
 type addrData struct {
-	Id string `json:"id"`
+	Ip string `json:"ip"`
 }
 
 var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 var configPath = flag.String("config-path", "/root/.gaia/config/addrbook.json", "Path to gaiad config")
 var appHost = flag.String("app-host", "127.0.0.1", "Host of exposed API")
 var appPort = flag.String("app-port", ":1317", "Port of exposed API")
+
+func intersection(remote, book []net.IP) (common []string) {
+
+	saveCurIps := make(map[string]bool)
+
+	for _, item := range remote {
+		saveCurIps[item.String()] = true
+	}
+
+	for _, item := range book {
+		if _, ok := saveCurIps[item.String()]; ok {
+			common = append(common, item.String())
+		}
+	}
+	return
+}
 
 func callApi(apiHost string, callType string, metric prometheus.Gauge) {
 
@@ -58,7 +77,7 @@ func callApi(apiHost string, callType string, metric prometheus.Gauge) {
 			contents, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				log.Printf("%s", err)
-                                continue
+				continue
 			}
 
 			apiResponse := blocksLatest{}
@@ -89,21 +108,38 @@ func callApi(apiHost string, callType string, metric prometheus.Gauge) {
 
 func getPeerAmount(addrBook string, metric prometheus.Gauge) {
 	for {
-		jsonFile, err := os.Open(addrBook)
+		connections, _ := netstat.TCP.Connections()
 
-		if err != nil {
-			log.Println(err)
-                        continue
+		var remoteIps []net.IP
+		var addrbookIps []net.IP
+
+		for _, connection := range connections {
+			if len(connection.Cmdline) >= 1 {
+				if strings.Contains(connection.Cmdline[0], "gaiad") {
+					remoteIps = append(remoteIps, connection.RemoteIP)
+				}
+			}
+
 		}
 
+		jsonFile, err := os.Open(addrBook)
+		if err != nil {
+			log.Println(err)
+		}
 		addrJsonBytes, _ := ioutil.ReadAll(jsonFile)
-
 		addrJson := addrBookJson{}
 		json.Unmarshal([]byte(addrJsonBytes), &addrJson)
-
 		jsonFile.Close()
 
-		metric.Set(float64(len(addrJson.Addrs)))
+		for _, addr := range addrJson.Addrs {
+			addrIp, _, _ := net.ParseCIDR(addr.Addr.Ip + "/32")
+			addrbookIps = append(addrbookIps, addrIp)
+		}
+
+		commonIps := intersection(remoteIps, addrbookIps)
+
+		metric.Set(float64(len(commonIps)))
+
 		time.Sleep(5 * time.Second)
 	}
 }
