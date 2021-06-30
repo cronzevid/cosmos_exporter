@@ -51,8 +51,6 @@ var appPort = flag.String("app-port", ":1317", "Port of exposed API")
 func customHandler(prom http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 
-		prom.ServeHTTP(w, r)
-
 		var wg sync.WaitGroup
 		wg.Add(3)
 
@@ -62,6 +60,7 @@ func customHandler(prom http.Handler) http.Handler {
 
 		wg.Wait()
 
+		prom.ServeHTTP(w, r)
 	}
 
 	return http.HandlerFunc(fn)
