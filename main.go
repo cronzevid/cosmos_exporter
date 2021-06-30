@@ -86,7 +86,7 @@ func intersection(remote, book []net.IP) (common []string) {
 func callApi(apiHost string, callType string, metric prometheus.Gauge, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	log.Println("Calling ", callType)
+	log.Println("Calling", callType)
 
 	apiRoute := "blocks/latest"
 
