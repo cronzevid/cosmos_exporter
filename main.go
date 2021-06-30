@@ -92,6 +92,8 @@ func callApi(apiHost string, callType string, metric prometheus.Gauge, wg *sync.
 
 	fullApiRoute := fmt.Sprintf("http://%s/%s", apiHost, apiRoute)
 	response, err := http.Get(fullApiRoute)
+	defer response.Body.Close()
+
 	if err != nil {
 		log.Printf("%s", err)
 	} else {
@@ -118,8 +120,6 @@ func callApi(apiHost string, callType string, metric prometheus.Gauge, wg *sync.
 
 			metric.Set(float64(curNanoSec - blockSec))
 		}
-
-		response.Body.Close()
 	}
 
 }
