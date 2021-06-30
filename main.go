@@ -10,12 +10,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/bastjan/netstat"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/procfs"
 )
 
 type blocksLatest struct {
@@ -107,26 +106,35 @@ func callApi(apiHost string, callType string, metric prometheus.Gauge) {
 }
 
 func getPeerAmount(addrBook string, metric prometheus.Gauge) {
-	for {
-		connections, _ := netstat.TCP.Connections()
 
+	for {
 		var remoteIps []net.IP
 		var addrbookIps []net.IP
 
-		for _, connection := range connections {
-			if len(connection.Cmdline) >= 1 {
-				if strings.Contains(connection.Cmdline[0], "gaiad") {
-					remoteIps = append(remoteIps, connection.RemoteIP)
-				}
-			}
+		fs, err := procfs.NewDefaultFS()
+		if err != nil {
+			log.Println(err)
+		}
 
+		ct, err := fs.NetTCP()
+		if err != nil {
+			log.Println(err)
+		}
+
+		for _, conn := range ct {
+			if conn.RemPort == 26656 {
+				remoteIps = append(remoteIps, conn.RemAddr)
+			}
 		}
 
 		jsonFile, err := os.Open(addrBook)
 		if err != nil {
 			log.Println(err)
 		}
-		addrJsonBytes, _ := ioutil.ReadAll(jsonFile)
+		addrJsonBytes, err := ioutil.ReadAll(jsonFile)
+		if err != nil {
+			log.Println(err)
+		}
 		addrJson := addrBookJson{}
 		json.Unmarshal([]byte(addrJsonBytes), &addrJson)
 		jsonFile.Close()
@@ -142,6 +150,7 @@ func getPeerAmount(addrBook string, metric prometheus.Gauge) {
 
 		time.Sleep(5 * time.Second)
 	}
+
 }
 
 func main() {
